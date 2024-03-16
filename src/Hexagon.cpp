@@ -2,12 +2,14 @@
 // Created by ana on 3.3.24.
 //
 
+#include <glad/glad.h>
 #include "rg/Hexagon.h"
+#include <iostream>
 
 namespace rg {
 
-    Hexagon::Hexagon(std::vector<float> &vs, std::vector<unsigned int> &ind, Texture2D &tex)
-            : vertices(vs), indices(ind), texture(tex) {
+    Hexagon::Hexagon(std::vector<float> &vs, std::vector<unsigned int> &ind)
+            : vertices(vs), indices(ind) {
         setupHexagon();
     }
 
@@ -35,13 +37,8 @@ namespace rg {
         glEnableVertexAttribArray(2); // activate defined vao
     }
 
-    void Hexagon::bindTexture() {
-        glBindVertexArray(VAO);
-        glActiveTexture(GL_TEXTURE0);
-       // texture.bindTexture();
-    }
-
     void Hexagon::drawHexagon() {
+        glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 3 * 6, GL_UNSIGNED_INT, 0); // render triangles from indexed buffer
         glBindVertexArray(0);
     }

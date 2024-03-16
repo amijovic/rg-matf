@@ -10,9 +10,13 @@
 namespace rg {
 
     Texture2D::Texture2D(std::string path) {
-        unsigned int texture;
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        texture = loadTexture(path);
+    }
+
+    unsigned int Texture2D::loadTexture(std::string path) {
+        unsigned int t;
+        glGenTextures(1, &t);
+        glBindTexture(GL_TEXTURE_2D, t);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
@@ -29,10 +33,7 @@ namespace rg {
             std::cout << "Failed to load texture" << std::endl;
         }
         stbi_image_free(data);
-    }
-
-    void Texture2D::bindTexture() const {
-        glBindTexture(GL_TEXTURE_2D, texture);
+        return t;
     }
 
     unsigned int Texture2D::getId() {

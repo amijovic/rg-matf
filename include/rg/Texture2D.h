@@ -14,11 +14,10 @@ namespace rg {
     class Texture2D {
     private:
         unsigned int texture;
-        //  GLuint unit;
+        unsigned int loadTexture(std::string path);
 
     public:
         Texture2D(std::string path);
-        void bindTexture() const;
         unsigned int getId();
     };
 

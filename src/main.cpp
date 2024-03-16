@@ -9,12 +9,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-//#include <learnopengl/filesystem.h>
-// #include <rg/Shader.h>
 #include <rg/Model.h>
 #include <learnopengl/camera.h>
-// #include <rg/Texture2D.h>
 #include <rg/Hexagon.h>
+#include <rg/Texture2D.h>
 
 #include <iostream>
 #include <vector>
@@ -174,26 +172,21 @@ int main() {
     ImGui_ImplOpenGL3_Init("#version 330 core");
 
     // configure global opengl state
-    // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
     // build and compile shaders
-    // -------------------------
-    //rg::Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
     rg::Shader hexagonShader("resources/shaders/HexagonShader.vs", "resources/shaders/HexagonShader.fs");
     rg::Shader teaCupShader("resources/shaders/TeaCup.vs", "resources/shaders/TeaCup.fs");
 
-    // models initialization
     // load models
     rg::Model teaCup("resources/objects/tea_cup/scene.gltf");
 
     // hexagon
     rg::Texture2D hexagonTexture("resources/textures/put.jpeg");
-    rg::Hexagon hexagon(hexagonVertices, hexagonIndices, hexagonTexture);
+    rg::Hexagon hexagon(hexagonVertices, hexagonIndices);
     hexagonShader.use();
-    hexagonShader.setInt("material.diffuse", hexagonTexture.getId());
-    hexagonShader.setInt("material.specular", hexagonTexture.getId());
-    stbi_set_flip_vertically_on_load(true);
+    hexagonShader.setInt("material.diffuse", 0);
+    hexagonShader.setInt("material.specular", 0);
 
     // light
     PointLight& pointLight = programState->pointLight;
@@ -231,10 +224,6 @@ int main() {
         hexagonShader.setVec3("light.diffuse", pointLight.diffuse);
         hexagonShader.setVec3("light.specular", pointLight.specular);
 
-        // hexagonShader.setInt("material.diffuse", hexagonTexture.getId());
-        // hexagonShader.setInt("material.diffuse", hexagonTexture.getId());
-        // hexagonShader.setInt("material.specular", hexagonTexture.getId());
-        // stbi_set_flip_vertically_on_load(true);
         hexagonShader.setFloat("material.shininess", 32.0f);
 
         glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
@@ -250,8 +239,8 @@ int main() {
         hexagonShader.setMat4("view", view);
         hexagonShader.setMat4("projection", projection);
 
-        hexagon.bindTexture();
-        hexagonTexture.bindTexture();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, hexagonTexture.getId());
         hexagon.drawHexagon();
 
         // tea cup

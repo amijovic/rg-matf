@@ -6,7 +6,6 @@
 #define CG_PROJECT_HEXAGON_H
 
 #include <vector>
-#include "rg/Texture2D.h"
 #include <GLFW/glfw3.h>
 
 namespace rg {
@@ -22,10 +21,8 @@ namespace rg {
     public:
         std::vector<float> vertices;
         std::vector<unsigned int> indices;
-        Texture2D texture;
 
-        Hexagon(std::vector<float> &vs, std::vector<unsigned int> &ind, Texture2D &tex);
-        void bindTexture();
+        Hexagon(std::vector<float> &vs, std::vector<unsigned int> &ind);
         void drawHexagon();
         void free();
     };

@@ -19,7 +19,6 @@ in vec3 FragPos;
 in vec3 Normal;
 in vec2 TextureCoord;
 
-// uniform sampler2D Texture;
 uniform vec3 viewPos;
 uniform Material material;
 uniform Light light;
