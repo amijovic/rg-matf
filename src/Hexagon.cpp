@@ -36,14 +36,14 @@ namespace rg {
     }
 
     void Hexagon::bindTexture() {
+        glBindVertexArray(VAO);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture.getId());
+       // texture.bindTexture();
     }
 
     void Hexagon::drawHexagon() {
-        glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 3 * 6, GL_UNSIGNED_INT, 0); // render triangles from indexed buffer
-        // glBindVertexArray(0);
+        glBindVertexArray(0);
     }
 
     void Hexagon::free() {

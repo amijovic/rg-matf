@@ -19,24 +19,19 @@
 namespace rg {
 
     class Model {
+    private:
+        void loadModel(std::string path);
+        void processNode(aiNode *node, const aiScene *scene);
+        Mesh processMesh(aiMesh *mesh, const aiScene *scene);
+        void loadTextureMaterial(aiMaterial *mat, aiTextureType type, std::string typeName, std::vector<Texture> &textures);
+
     public:
         std::vector<Mesh> meshes;
         std::vector<Texture> loaded_textures;
         std::string directory;
 
         Model(std::string path);
-
         void Draw(Shader &shader);
-
-    private:
-        void loadModel(std::string path);
-
-        void processNode(aiNode *node, const aiScene *scene);
-
-        Mesh processMesh(aiMesh *mesh, const aiScene *scene);
-
-        void
-        loadTextureMaterial(aiMaterial *mat, aiTextureType type, std::string typeName, std::vector<Texture> &textures);
     };
 
     unsigned int TextureFromFile(const char *filename, std::string directory);

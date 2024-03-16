@@ -1,0 +1,11 @@
+Model Information:
+* title:	Tea Cup
+* source:	https://sketchfab.com/3d-models/tea-cup-93f3386eb6f34bb8acb5caa3645e9070
+* author:	miranda.j.rice (https://sketchfab.com/miranda.j.rice)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Tea Cup" (https://sketchfab.com/3d-models/tea-cup-93f3386eb6f34bb8acb5caa3645e9070) by miranda.j.rice (https://sketchfab.com/miranda.j.rice) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

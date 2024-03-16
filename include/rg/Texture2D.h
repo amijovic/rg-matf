@@ -18,9 +18,7 @@ namespace rg {
 
     public:
         Texture2D(std::string path);
-
         void bindTexture() const;
-
         unsigned int getId();
     };
 

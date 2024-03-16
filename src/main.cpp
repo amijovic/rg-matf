@@ -61,10 +61,12 @@ struct ProgramState {
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 backpackPosition = glm::vec3(0.0f);
     glm::vec3 hexagonPosition = glm::vec3(0.0f, -2.0f, 0.0f);
-    float hexagonScale = 10.0f;
+    glm::vec3 teaCupPosition = glm::vec3(-5.0f, 5.0f, 5.0f);
+    float hexagonScale = 20.0f;
+    float teaCupScale = 0.2f;
     PointLight pointLight;
     ProgramState()
-            : camera(glm::vec3(5.0f, 0.0f, 0.0f)) {}
+            : camera(glm::vec3(0.0f, 30.0f, 10.0f)) {}
 
     void SaveToFile(std::string filename);
 
@@ -157,7 +159,6 @@ int main() {
         return -1;
     }
 
-
     programState = new ProgramState;
     programState->LoadFromFile("resources/program_state.txt");
     if (programState->ImGuiEnabled) {
@@ -179,23 +180,22 @@ int main() {
     // build and compile shaders
     // -------------------------
     //rg::Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
+    rg::Shader hexagonShader("resources/shaders/HexagonShader.vs", "resources/shaders/HexagonShader.fs");
+    rg::Shader teaCupShader("resources/shaders/TeaCup.vs", "resources/shaders/TeaCup.fs");
 
     // models initialization
-    rg::Shader hexagonShader("resources/shaders/HexagonShader.vs", "resources/shaders/HexagonShader.fs");
+    // load models
+    rg::Model teaCup("resources/objects/tea_cup/scene.gltf");
+
+    // hexagon
     rg::Texture2D hexagonTexture("resources/textures/put.jpeg");
     rg::Hexagon hexagon(hexagonVertices, hexagonIndices, hexagonTexture);
     hexagonShader.use();
     hexagonShader.setInt("material.diffuse", hexagonTexture.getId());
     hexagonShader.setInt("material.specular", hexagonTexture.getId());
-
-    // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
     stbi_set_flip_vertically_on_load(true);
 
-    // load models
-    // -----------
-    // Model ourModel("resources/objects/backpack/backpack.obj");
-    // ourModel.SetShaderTextureNamePrefix("material.");
-
+    // light
     PointLight& pointLight = programState->pointLight;
     pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
     pointLight.ambient = glm::vec3(0.2f, 0.2f, 0.1f);
@@ -206,15 +206,9 @@ int main() {
     pointLight.linear = 0.09f;
     pointLight.quadratic = 0.032f;
 
-
-    // draw in wireframe
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
     // render loop
-    // -----------
     while (!glfwWindowShouldClose(window)) {
         // per-frame time logic
-        // --------------------
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -222,34 +216,9 @@ int main() {
         // input
         processInput(window);
 
-        /*
-        ourShader.use();
-        // don't forget to enable shader before setting uniforms
-        pointLight.position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
-        ourShader.setVec3("pointLight.position", pointLight.position);
-        ourShader.setVec3("pointLight.ambient", pointLight.ambient);
-        ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        ourShader.setVec3("pointLight.specular", pointLight.specular);
-        ourShader.setFloat("pointLight.constant", pointLight.constant);
-        ourShader.setFloat("pointLight.linear", pointLight.linear);
-        ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-        ourShader.setVec3("viewPosition", programState->camera.Position);
-        ourShader.setFloat("material.shininess", 32.0f);
-        // view/projection transformations
-
-        // render the loaded model
-        model = glm::scale(model, glm::vec3(programState->backpackScale));    // it's a bit too big for our scene, so scale it down
-        ourModel.Draw(ourShader);
-        */
-
         // Render
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // --------------------
-        //glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        //--------------------------
 
         pointLight.position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
 
@@ -262,7 +231,10 @@ int main() {
         hexagonShader.setVec3("light.diffuse", pointLight.diffuse);
         hexagonShader.setVec3("light.specular", pointLight.specular);
 
-        //hexagonShader.setInt("material.diffuse", hexagonTexture.getId());
+        // hexagonShader.setInt("material.diffuse", hexagonTexture.getId());
+        // hexagonShader.setInt("material.diffuse", hexagonTexture.getId());
+        // hexagonShader.setInt("material.specular", hexagonTexture.getId());
+        // stbi_set_flip_vertically_on_load(true);
         hexagonShader.setFloat("material.shininess", 32.0f);
 
         glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
@@ -271,21 +243,45 @@ int main() {
         hexagonShader.setMat4("view", view);
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(programState->hexagonScale));    // it's a bit too big for our scene, so scale it down
-        model = glm::translate(model,programState->backpackPosition); // translate it down so it's at the center of the scene
-        hexagonShader.setMat4("model", model);
+        model = glm::translate(model,programState->hexagonPosition); // translate it down so it's at the center of the scene
+        model = glm::rotate(model, (float) glm::radians(90.f), glm::vec3(1.0f, 0.0f, 0.0f));
 
         hexagonShader.setMat4("model", model);
         hexagonShader.setMat4("view", view);
         hexagonShader.setMat4("projection", projection);
 
         hexagon.bindTexture();
+        hexagonTexture.bindTexture();
         hexagon.drawHexagon();
+
+        // tea cup
+        teaCupShader.use();
+        pointLight.position = glm::vec3(4.0, 4.0f, 4.0);
+        teaCupShader.setVec3("pointLight.position", pointLight.position);
+        teaCupShader.setVec3("pointLight.ambient", pointLight.ambient);
+        teaCupShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+        teaCupShader.setVec3("pointLight.specular", pointLight.specular);
+        teaCupShader.setFloat("pointLight.constant", pointLight.constant);
+        teaCupShader.setFloat("pointLight.linear", pointLight.linear);
+        teaCupShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+        teaCupShader.setVec3("viewPosition", programState->camera.Position);
+        teaCupShader.setFloat("material.shininess", 32.0f);
+
+        projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+        view = programState->camera.GetViewMatrix();
+        model = glm::mat4 (1.0f);
+        model = glm::scale(model, glm::vec3(programState->teaCupScale));    // it's a bit too big for our scene, so scale it down
+        model = glm::translate(model,programState->teaCupPosition); // translate it down so it's at the center of the scene
+
+        teaCupShader.setMat4("model", model);
+        teaCupShader.setMat4("projection", projection);
+        teaCupShader.setMat4("view", view);
+        teaCup.Draw(teaCupShader);
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -297,7 +293,6 @@ int main() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
     // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
 }

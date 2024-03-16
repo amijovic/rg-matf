@@ -25,11 +25,8 @@ namespace rg {
         Texture2D texture;
 
         Hexagon(std::vector<float> &vs, std::vector<unsigned int> &ind, Texture2D &tex);
-
         void bindTexture();
-
         void drawHexagon();
-
         void free();
     };
 

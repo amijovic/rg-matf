@@ -29,19 +29,17 @@ namespace rg {
     };
 
     class Mesh {
+    private:
+        unsigned int VAO;
+        void setupMesh();
+
     public:
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
         std::vector<Texture> textures;
 
         Mesh(const std::vector<Vertex> &vs, const std::vector<unsigned int> &ind, const std::vector<Texture> &tex);
-
         void Draw(Shader &shader);
-
-    private:
-        unsigned int VAO;
-
-        void setupMesh();
     };
 }
 
