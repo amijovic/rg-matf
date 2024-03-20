@@ -17,6 +17,8 @@
 #include <iostream>
 #include <vector>
 
+void renderQuad();
+
 void framebufferSizeCallback(GLFWwindow *window, int width, int height);
 
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
@@ -59,12 +61,13 @@ struct ProgramState {
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 backpackPosition = glm::vec3(0.0f);
     glm::vec3 hexagonPosition = glm::vec3(0.0f, -2.0f, 0.0f);
-    glm::vec3 teaCupPosition = glm::vec3(-5.0f, 5.0f, 5.0f);
+    glm::vec3 teaCupPosition = glm::vec3(-5.0f, 15.0f, 5.0f);
     float hexagonScale = 20.0f;
     float teaCupScale = 0.2f;
     PointLight pointLight;
     ProgramState()
-            : camera(glm::vec3(0.0f, 30.0f, 10.0f)) {}
+            : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
+         //   : camera(glm::vec3(0.0f, 30.0f, 10.0f)) {}
 
     void SaveToFile(std::string filename);
 
@@ -105,24 +108,24 @@ ProgramState *programState;
 
 void DrawImGui(ProgramState *programState);
 
-std::vector<float> hexagonVertices {
-        // vertex coord.        normals                 texture coord.
-        0.0f,  0.0f, 0.0f,     0.0f, 1.0f, 0.0f,      0.5f, 0.5f,   // center
-        0.5f, 0.0f, 0.0f,      0.0f, 1.0f, 0.0f,      1.0f, 0.5f,   // middle right
-        0.25f,  0.5f, 0.0f,    0.0f, 1.0f, 0.0f,      1.0f, 1.0f,   // top right
-        -0.25f, 0.5f, 0.0f,    0.0f, 1.0f, 0.0f,      0.0f, 1.0f,   // top left
-        -0.5f, 0.0f, 0.0f,     0.0f, 1.0f, 0.0f,      0.0f, 0.5f,   // middle left
-        -0.25f,  -0.5f, 0.0f,  0.0f, 1.0f, 0.0f,      0.0f, 0.0f,   // bottom left
-        0.25f,  -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,      1.0f, 0.0f    // bottom right
+std::vector<float> hexagonPositions {
+        0.0f,  0.0f, 0.0f,     // center
+        0.5f, 0.0f, 0.0f,      // middle right
+        0.25f,  0.5f, 0.0f,    // top right
+        -0.25f, 0.5f, 0.0f,    // top left
+        -0.5f, 0.0f, 0.0f,     // middle left
+        -0.25f,  -0.5f, 0.0f,  // bottom left
+        0.25f,  -0.5f, 0.0f    // bottom right
 };
 
-std::vector<unsigned int> hexagonIndices {  // note that we start from 0!
-        0, 1, 2,   // first triangle
-        0, 2, 3,    // second triangle
-        0, 3, 4,
-        0, 4, 5,
-        0, 5, 6,
-        0, 6, 1
+std::vector<float> hexagonTextureCoord {
+        0.5f, 0.5f,    // center
+        1.0f, 0.5f,    // middle right
+        0.75f, 1.0f,   // top right
+        0.25f, 1.0f,   // top left
+        0.0f, 0.5f,    // middle left
+        0.25f, 0.0f,   // bottom left
+        0.75f, 0.0f    // bottom right
 };
 
 int main() {
@@ -182,16 +185,17 @@ int main() {
     rg::Model teaCup("resources/objects/tea_cup/scene.gltf");
 
     // hexagon
-    rg::Texture2D hexagonTexture("resources/textures/put.jpeg");
-    rg::Hexagon hexagon(hexagonVertices, hexagonIndices);
+    rg::Texture2D hexagonDiffuseMap("resources/textures/stone.jpg");
+    rg::Texture2D hexagonNormalMap("resources/textures/stone_normal.jpg");
+    rg::Hexagon hexagon(hexagonPositions, hexagonTextureCoord);
     hexagonShader.use();
-    hexagonShader.setInt("material.diffuse", 0);
-    hexagonShader.setInt("material.specular", 0);
+    hexagonShader.setInt("material.diffuseMap", 0);
+    hexagonShader.setInt("material.normalMap", 1);
 
     // light
     PointLight& pointLight = programState->pointLight;
     pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
-    pointLight.ambient = glm::vec3(0.2f, 0.2f, 0.1f);
+    pointLight.ambient = glm::vec3(0.3f, 0.3f, 0.3f);
     pointLight.diffuse = glm::vec3(0.6f, 0.6f, 0.6f);
     pointLight.specular = glm::vec3(1.0f, 1.0f, 1.0f);
 
@@ -228,24 +232,26 @@ int main() {
 
         glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = programState->camera.GetViewMatrix();
-        hexagonShader.setMat4("projection", projection);
-        hexagonShader.setMat4("view", view);
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(programState->hexagonScale));    // it's a bit too big for our scene, so scale it down
-        model = glm::translate(model,programState->hexagonPosition); // translate it down so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(programState->hexagonScale));
         model = glm::rotate(model, (float) glm::radians(90.f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(0.0, 0.0, 1.0))); // rotate the quad to show normal mapping from multiple directions
+        model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(1.0, 0.0, 0.0))); // rotate the quad to show normal mapping from multiple directions
+       // model = glm::translate(model,programState->hexagonPosition);
 
         hexagonShader.setMat4("model", model);
         hexagonShader.setMat4("view", view);
         hexagonShader.setMat4("projection", projection);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, hexagonTexture.getId());
+        glBindTexture(GL_TEXTURE_2D, hexagonDiffuseMap.getId());
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, hexagonNormalMap.getId());
         hexagon.drawHexagon();
 
         // tea cup
         teaCupShader.use();
-        pointLight.position = glm::vec3(4.0, 4.0f, 4.0);
+        pointLight.position = glm::vec3(0.5, 1.0f, 0.3);
         teaCupShader.setVec3("pointLight.position", pointLight.position);
         teaCupShader.setVec3("pointLight.ambient", pointLight.ambient);
         teaCupShader.setVec3("pointLight.diffuse", pointLight.diffuse);
