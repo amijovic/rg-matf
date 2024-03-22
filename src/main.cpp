@@ -187,17 +187,19 @@ int main() {
     // hexagon
     rg::Texture2D hexagonDiffuseMap("resources/textures/stone.jpg");
     rg::Texture2D hexagonNormalMap("resources/textures/stone_normal.jpg");
+    rg::Texture2D hexagonHeightMap("resources/textures/stone_displacement.jpg");
     rg::Hexagon hexagon(hexagonPositions, hexagonTextureCoord);
     hexagonShader.use();
     hexagonShader.setInt("material.diffuseMap", 0);
     hexagonShader.setInt("material.normalMap", 1);
+    hexagonShader.setInt("material.depthMap", 2);
 
     // light
     PointLight& pointLight = programState->pointLight;
     pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
     pointLight.ambient = glm::vec3(0.3f, 0.3f, 0.3f);
     pointLight.diffuse = glm::vec3(0.6f, 0.6f, 0.6f);
-    pointLight.specular = glm::vec3(1.0f, 1.0f, 1.0f);
+    pointLight.specular = glm::vec3(0.2f, 0.2f, 0.2f);
 
     pointLight.constant = 1.0f;
     pointLight.linear = 0.09f;
@@ -229,6 +231,7 @@ int main() {
         hexagonShader.setVec3("light.specular", pointLight.specular);
 
         hexagonShader.setFloat("material.shininess", 32.0f);
+        hexagonShader.setFloat("heightScale", 0.1f);
 
         glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = programState->camera.GetViewMatrix();
@@ -247,6 +250,8 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, hexagonDiffuseMap.getId());
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, hexagonNormalMap.getId());
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, hexagonHeightMap.getId());
         hexagon.drawHexagon();
 
         // tea cup
