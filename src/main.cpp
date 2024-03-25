@@ -34,7 +34,6 @@ const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 // camera
-
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
@@ -42,6 +41,13 @@ bool firstMouse = true;
 // timing
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+
+struct DirLight {
+    glm::vec3 position;
+    glm::vec3 ambient;
+    glm::vec3 diffuse;
+    glm::vec3 specular;
+};
 
 struct PointLight {
     glm::vec3 position;
@@ -59,15 +65,18 @@ struct ProgramState {
     bool ImGuiEnabled = false;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
-    glm::vec3 backpackPosition = glm::vec3(0.0f);
-    glm::vec3 hexagonPosition = glm::vec3(0.0f, -2.0f, 0.0f);
-    glm::vec3 teaCupPosition = glm::vec3(-5.0f, 15.0f, 5.0f);
-    float hexagonScale = 20.0f;
-    float teaCupScale = 0.2f;
+    glm::vec3 hexagonPosition = glm::vec3(0.0f, -11.0f, 0.0f);
+    glm::vec3 teaCupPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 violinPosition = glm::vec3(20.0f, -15.0f, 5.0f);
+    glm::vec3 flowerPosition = glm::vec3(400.0f, 0.0f, 200.0f);
+    float hexagonScale = 30.0f;
+    float teaCupScale = 0.080f;
+    float violinScale = 0.08f;
+    float flowerScale = 0.01f;
+    DirLight dirLight;
     PointLight pointLight;
     ProgramState()
             : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
-         //   : camera(glm::vec3(0.0f, 30.0f, 10.0f)) {}
 
     void SaveToFile(std::string filename);
 
@@ -176,13 +185,23 @@ int main() {
 
     // configure global opengl state
     glEnable(GL_DEPTH_TEST);
+    //glEnable(GL_CULL_FACE);
+    //glEnable(GL_BACK);
+    //glEnable(GL_CW);
+    // glEnable(GL_MULTISAMPLE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // build and compile shaders
     rg::Shader hexagonShader("resources/shaders/HexagonShader.vs", "resources/shaders/HexagonShader.fs");
     rg::Shader teaCupShader("resources/shaders/TeaCup.vs", "resources/shaders/TeaCup.fs");
+    rg::Shader violinShader("resources/shaders/Violin.vs", "resources/shaders/Violin.fs");
+    rg::Shader flowerShader("resources/shaders/Flower.vs", "resources/shaders/Flower.fs");
 
     // load models
-    rg::Model teaCup("resources/objects/tea_cup/scene.gltf");
+    rg::Model teaCup("resources/objects/teaCup/scene.gltf");
+    rg::Model violin("resources/objects/violin/scene.gltf");
+    rg::Model flower("resources/objects/flower/scene.gltf");
 
     // hexagon
     rg::Texture2D hexagonDiffuseMap("resources/textures/stone.jpg");
@@ -195,11 +214,17 @@ int main() {
     hexagonShader.setInt("material.depthMap", 2);
 
     // light
+    DirLight& dirLight = programState->dirLight;
+    dirLight.position = glm::vec3(-0.2f, -1.0f, -0.3f);
+    dirLight.ambient = glm::vec3(0.05f, 0.05f, 0.05f);
+    dirLight.diffuse = glm::vec3(0.2f, 0.2f, 0.2f);
+    dirLight.specular = glm::vec3(0.5f, 0.3f, 0.3f);
+
     PointLight& pointLight = programState->pointLight;
-    pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
-    pointLight.ambient = glm::vec3(0.3f, 0.3f, 0.3f);
+    pointLight.position = glm::vec3(0.0f, -10.0f, 0.0f);
+    pointLight.ambient = glm::vec3(0.4f, 0.4f, 0.4f);
     pointLight.diffuse = glm::vec3(0.6f, 0.6f, 0.6f);
-    pointLight.specular = glm::vec3(0.2f, 0.2f, 0.2f);
+    pointLight.specular = glm::vec3(1.0f, 1.0f, 1.0f);
 
     pointLight.constant = 1.0f;
     pointLight.linear = 0.09f;
@@ -219,16 +244,28 @@ int main() {
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        pointLight.position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
+        //pointLight.position = glm::vec3(-10.0 * cos(currentFrame), -10.0f, -10.0 * sin(currentFrame));
+        dirLight.position = glm::vec3(-0.2f, -1.0f, -0.3f);
+        pointLight.position = glm::vec3(0.0f, -10.0f, 0.0f);
 
         // hexagon
         hexagonShader.use();
-        hexagonShader.setVec3("light.position", pointLight.position);
+        hexagonShader.setVec3("lightPos", pointLight.position);
         hexagonShader.setVec3("viewPos", programState->camera.Position);
 
-        hexagonShader.setVec3("light.ambient", pointLight.ambient);
-        hexagonShader.setVec3("light.diffuse", pointLight.diffuse);
-        hexagonShader.setVec3("light.specular", pointLight.specular);
+        hexagonShader.setVec3("dirLight.direction", dirLight.position);
+        hexagonShader.setVec3("dirLight.ambient", dirLight.ambient);
+        hexagonShader.setVec3("dirLight.diffuse", dirLight.diffuse);
+        hexagonShader.setVec3("dirLight.specular", dirLight.specular);
+
+        hexagonShader.setVec3("pointLight.position", pointLight.position);
+        hexagonShader.setVec3("pointLight.ambient", pointLight.ambient);
+        hexagonShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+        hexagonShader.setVec3("pointLight.specular", pointLight.specular);
+
+        hexagonShader.setFloat("pointLight.constant", pointLight.constant);
+        hexagonShader.setFloat("pointLight.linear", pointLight.linear);
+        hexagonShader.setFloat("pointLight.quadratic", pointLight.quadratic);
 
         hexagonShader.setFloat("material.shininess", 32.0f);
         hexagonShader.setFloat("heightScale", 0.1f);
@@ -236,11 +273,11 @@ int main() {
         glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = programState->camera.GetViewMatrix();
         glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model,programState->hexagonPosition);
         model = glm::scale(model, glm::vec3(programState->hexagonScale));
         model = glm::rotate(model, (float) glm::radians(90.f), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(0.0, 0.0, 1.0))); // rotate the quad to show normal mapping from multiple directions
-        model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(1.0, 0.0, 0.0))); // rotate the quad to show normal mapping from multiple directions
-       // model = glm::translate(model,programState->hexagonPosition);
+        // model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(0.0, 0.0, 1.0)));
+        //model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(1.0, 0.0, 0.0))); // rotate the quad to show normal mapping from multiple directions
 
         hexagonShader.setMat4("model", model);
         hexagonShader.setMat4("view", view);
@@ -257,26 +294,94 @@ int main() {
         // tea cup
         teaCupShader.use();
         pointLight.position = glm::vec3(0.5, 1.0f, 0.3);
+
+        teaCupShader.setVec3("dirLight.direction", dirLight.position);
+        teaCupShader.setVec3("dirLight.ambient", dirLight.ambient);
+        teaCupShader.setVec3("dirLight.diffuse", dirLight.diffuse);
+        teaCupShader.setVec3("dirLight.specular", dirLight.specular);
+
         teaCupShader.setVec3("pointLight.position", pointLight.position);
         teaCupShader.setVec3("pointLight.ambient", pointLight.ambient);
         teaCupShader.setVec3("pointLight.diffuse", pointLight.diffuse);
         teaCupShader.setVec3("pointLight.specular", pointLight.specular);
+
         teaCupShader.setFloat("pointLight.constant", pointLight.constant);
         teaCupShader.setFloat("pointLight.linear", pointLight.linear);
         teaCupShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+
         teaCupShader.setVec3("viewPosition", programState->camera.Position);
         teaCupShader.setFloat("material.shininess", 32.0f);
 
         projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
         view = programState->camera.GetViewMatrix();
         model = glm::mat4 (1.0f);
-        model = glm::scale(model, glm::vec3(programState->teaCupScale));    // it's a bit too big for our scene, so scale it down
-        model = glm::translate(model,programState->teaCupPosition); // translate it down so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(programState->teaCupScale));
+        model = glm::translate(model,programState->teaCupPosition);
 
         teaCupShader.setMat4("model", model);
         teaCupShader.setMat4("projection", projection);
         teaCupShader.setMat4("view", view);
         teaCup.Draw(teaCupShader);
+
+        // violin
+        violinShader.setVec3("dirLight.direction", dirLight.position);
+        violinShader.setVec3("dirLight.ambient", dirLight.ambient);
+        violinShader.setVec3("dirLight.diffuse", dirLight.diffuse);
+        violinShader.setVec3("dirLight.specular", dirLight.specular);
+
+        violinShader.setVec3("pointLight.position", pointLight.position);
+        violinShader.setVec3("pointLight.ambient", pointLight.ambient);
+        violinShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+        violinShader.setVec3("pointLight.specular", pointLight.specular);
+
+        violinShader.setFloat("pointLight.constant", pointLight.constant);
+        violinShader.setFloat("pointLight.linear", pointLight.linear);
+        violinShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+
+        violinShader.setVec3("viewPosition", programState->camera.Position);
+        violinShader.setFloat("material.shininess", 32.0f);
+
+        projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+        view = programState->camera.GetViewMatrix();
+        model = glm::mat4 (1.0f);
+        model = glm::scale(model, glm::vec3(programState->violinScale));
+        model = glm::rotate(model, (float) glm::radians(3*90.f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::translate(model,programState->violinPosition);
+
+        violinShader.setMat4("model", model);
+        violinShader.setMat4("projection", projection);
+        violinShader.setMat4("view", view);
+        violin.Draw(violinShader);
+
+        // flower
+        flowerShader.setVec3("dirLight.direction", dirLight.position);
+        flowerShader.setVec3("dirLight.ambient", dirLight.ambient);
+        flowerShader.setVec3("dirLight.diffuse", dirLight.diffuse);
+        flowerShader.setVec3("dirLight.specular", dirLight.specular);
+
+        flowerShader.setVec3("pointLight.position", pointLight.position);
+        flowerShader.setVec3("pointLight.ambient", pointLight.ambient);
+        flowerShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+        flowerShader.setVec3("pointLight.specular", pointLight.specular);
+
+        flowerShader.setFloat("pointLight.constant", pointLight.constant);
+        flowerShader.setFloat("pointLight.linear", pointLight.linear);
+        flowerShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+
+        flowerShader.setVec3("viewPosition", programState->camera.Position);
+        flowerShader.setFloat("material.shininess", 32.0f);
+
+        projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+        view = programState->camera.GetViewMatrix();
+        model = glm::mat4 (1.0f);
+        model = glm::scale(model, glm::vec3(programState->flowerScale));
+        model = glm::rotate(model, (float) glm::radians(3*90.f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::translate(model,programState->flowerPosition);
+
+        flowerShader.setMat4("model", model);
+        flowerShader.setMat4("projection", projection);
+        flowerShader.setMat4("view", view);
+        flower.Draw(flowerShader);
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
@@ -358,7 +463,7 @@ void DrawImGui(ProgramState *programState) {
         ImGui::Text("Hello text");
         ImGui::SliderFloat("Float slider", &f, 0.0, 1.0);
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
-        ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition);
+        //ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition);
         ImGui::DragFloat("Backpack scale", &programState->hexagonScale, 0.05, 0.1, 4.0);
 
         ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
