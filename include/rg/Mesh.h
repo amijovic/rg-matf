@@ -30,7 +30,6 @@ namespace rg {
 
     class Mesh {
     private:
-        unsigned int VAO;
         void setupMesh();
 
     public:
@@ -40,6 +39,8 @@ namespace rg {
 
         Mesh(const std::vector<Vertex> &vs, const std::vector<unsigned int> &ind, const std::vector<Texture> &tex);
         void Draw(Shader &shader);
+
+        unsigned int VAO;
     };
 }
 

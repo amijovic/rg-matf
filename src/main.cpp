@@ -17,16 +17,10 @@
 #include <iostream>
 #include <vector>
 
-void renderQuad();
-
 void framebufferSizeCallback(GLFWwindow *window, int width, int height);
-
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
-
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
-
 void processInput(GLFWwindow *window);
-
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
 
 // settings
@@ -66,11 +60,9 @@ struct ProgramState {
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 hexagonPosition = glm::vec3(0.0f, -11.0f, 0.0f);
-    glm::vec3 teaCupPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 violinPosition = glm::vec3(20.0f, -15.0f, 5.0f);
-    glm::vec3 flowerPosition = glm::vec3(400.0f, 0.0f, 200.0f);
+    glm::vec3 violinPosition = glm::vec3(0.0f, -8.0f, 0.0f);
     float hexagonScale = 30.0f;
-    float teaCupScale = 0.080f;
+    float teaCupScale = 0.08f;
     float violinScale = 0.08f;
     float flowerScale = 0.01f;
     DirLight dirLight;
@@ -114,8 +106,8 @@ void ProgramState::LoadFromFile(std::string filename) {
 }
 
 ProgramState *programState;
-
-void DrawImGui(ProgramState *programState);
+void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight);
+glm::mat4* getInstanceTransformationMatrices(unsigned int amount, float radius, float offset, float yoffset, float mscale);
 
 std::vector<float> hexagonPositions {
         0.0f,  0.0f, 0.0f,     // center
@@ -171,32 +163,18 @@ int main() {
 
     programState = new ProgramState;
     programState->LoadFromFile("resources/program_state.txt");
-    if (programState->ImGuiEnabled) {
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
-    // Init Imgui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void) io;
-
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330 core");
 
     // configure global opengl state
     glEnable(GL_DEPTH_TEST);
-    //glEnable(GL_CULL_FACE);
-    //glEnable(GL_BACK);
-    //glEnable(GL_CW);
-    // glEnable(GL_MULTISAMPLE);
+    glEnable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // build and compile shaders
     rg::Shader hexagonShader("resources/shaders/HexagonShader.vs", "resources/shaders/HexagonShader.fs");
-    rg::Shader teaCupShader("resources/shaders/TeaCup.vs", "resources/shaders/TeaCup.fs");
+    rg::Shader teaCupShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
     rg::Shader violinShader("resources/shaders/Violin.vs", "resources/shaders/Violin.fs");
-    rg::Shader flowerShader("resources/shaders/Flower.vs", "resources/shaders/Flower.fs");
+    rg::Shader flowerShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
 
     // load models
     rg::Model teaCup("resources/objects/teaCup/scene.gltf");
@@ -205,13 +183,70 @@ int main() {
 
     // hexagon
     rg::Texture2D hexagonDiffuseMap("resources/textures/stone.jpg");
-    rg::Texture2D hexagonNormalMap("resources/textures/stone_normal.jpg");
-    rg::Texture2D hexagonHeightMap("resources/textures/stone_displacement.jpg");
+    rg::Texture2D hexagonNormalMap("resources/textures/stoneNormal.jpg");
+    rg::Texture2D hexagonHeightMap("resources/textures/stoneDisplacement.jpg");
     rg::Hexagon hexagon(hexagonPositions, hexagonTextureCoord);
     hexagonShader.use();
     hexagonShader.setInt("material.diffuseMap", 0);
     hexagonShader.setInt("material.normalMap", 1);
     hexagonShader.setInt("material.depthMap", 2);
+
+    // transformation matrices
+    unsigned int amount = 200;
+    glm::mat4* teaCupMatrices = getInstanceTransformationMatrices(amount, 18.0, 5.0, 30.0, programState->teaCupScale);
+    unsigned int teaCupBuffer;
+    glGenBuffers(1, &teaCupBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, teaCupBuffer);
+    glBufferData(GL_ARRAY_BUFFER, amount * sizeof(glm::mat4), &teaCupMatrices[0], GL_STATIC_DRAW);
+
+    for (unsigned int i = 0; i < teaCup.meshes.size(); i++)
+    {
+        unsigned int teaCupVAO = teaCup.meshes[i].VAO;
+        glBindVertexArray(teaCupVAO);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+        glEnableVertexAttribArray(6);
+        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+
+        glVertexAttribDivisor(3, 1);
+        glVertexAttribDivisor(4, 1);
+        glVertexAttribDivisor(5, 1);
+        glVertexAttribDivisor(6, 1);
+
+        glBindVertexArray(0);
+    }
+
+    amount = 400;
+    glm::mat4* flowerMatrices = getInstanceTransformationMatrices(amount, 20.0, 15.0, 40.0, programState->flowerScale);
+    unsigned int flowerBuffer;
+    glGenBuffers(1, &flowerBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, flowerBuffer);
+    glBufferData(GL_ARRAY_BUFFER, amount * sizeof(glm::mat4), &flowerMatrices[0], GL_STATIC_DRAW);
+
+    for (unsigned int i = 0; i < flower.meshes.size(); i++)
+    {
+        unsigned int flowerVAO = flower.meshes[i].VAO;
+        glBindVertexArray(flowerVAO);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+        glEnableVertexAttribArray(6);
+        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+
+        glVertexAttribDivisor(3, 1);
+        glVertexAttribDivisor(4, 1);
+        glVertexAttribDivisor(5, 1);
+        glVertexAttribDivisor(6, 1);
+
+        glBindVertexArray(0);
+    }
 
     // light
     DirLight& dirLight = programState->dirLight;
@@ -225,10 +260,9 @@ int main() {
     pointLight.ambient = glm::vec3(0.4f, 0.4f, 0.4f);
     pointLight.diffuse = glm::vec3(0.6f, 0.6f, 0.6f);
     pointLight.specular = glm::vec3(1.0f, 1.0f, 1.0f);
-
     pointLight.constant = 1.0f;
-    pointLight.linear = 0.09f;
-    pointLight.quadratic = 0.032f;
+    pointLight.linear = 0.027f;
+    pointLight.quadratic = 0.0028f;
 
     // render loop
     while (!glfwWindowShouldClose(window)) {
@@ -244,44 +278,17 @@ int main() {
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        //pointLight.position = glm::vec3(-10.0 * cos(currentFrame), -10.0f, -10.0 * sin(currentFrame));
         dirLight.position = glm::vec3(-0.2f, -1.0f, -0.3f);
         pointLight.position = glm::vec3(0.0f, -10.0f, 0.0f);
 
         // hexagon
         hexagonShader.use();
-        hexagonShader.setVec3("lightPos", pointLight.position);
-        hexagonShader.setVec3("viewPos", programState->camera.Position);
-
-        hexagonShader.setVec3("dirLight.direction", dirLight.position);
-        hexagonShader.setVec3("dirLight.ambient", dirLight.ambient);
-        hexagonShader.setVec3("dirLight.diffuse", dirLight.diffuse);
-        hexagonShader.setVec3("dirLight.specular", dirLight.specular);
-
-        hexagonShader.setVec3("pointLight.position", pointLight.position);
-        hexagonShader.setVec3("pointLight.ambient", pointLight.ambient);
-        hexagonShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        hexagonShader.setVec3("pointLight.specular", pointLight.specular);
-
-        hexagonShader.setFloat("pointLight.constant", pointLight.constant);
-        hexagonShader.setFloat("pointLight.linear", pointLight.linear);
-        hexagonShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-
-        hexagonShader.setFloat("material.shininess", 32.0f);
-        hexagonShader.setFloat("heightScale", 0.1f);
-
-        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = programState->camera.GetViewMatrix();
+        setShaderUniformValues(hexagonShader, dirLight, pointLight);
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model,programState->hexagonPosition);
         model = glm::scale(model, glm::vec3(programState->hexagonScale));
         model = glm::rotate(model, (float) glm::radians(90.f), glm::vec3(1.0f, 0.0f, 0.0f));
-        // model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(0.0, 0.0, 1.0)));
-        //model = glm::rotate(model, glm::radians((float)glfwGetTime() * -10.0f), glm::normalize(glm::vec3(1.0, 0.0, 0.0))); // rotate the quad to show normal mapping from multiple directions
-
         hexagonShader.setMat4("model", model);
-        hexagonShader.setMat4("view", view);
-        hexagonShader.setMat4("projection", projection);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, hexagonDiffuseMap.getId());
@@ -289,104 +296,52 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, hexagonNormalMap.getId());
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, hexagonHeightMap.getId());
+
+        glCullFace(GL_BACK);
+        glFrontFace(GL_CW);
         hexagon.drawHexagon();
-
-        // tea cup
-        teaCupShader.use();
-        pointLight.position = glm::vec3(0.5, 1.0f, 0.3);
-
-        teaCupShader.setVec3("dirLight.direction", dirLight.position);
-        teaCupShader.setVec3("dirLight.ambient", dirLight.ambient);
-        teaCupShader.setVec3("dirLight.diffuse", dirLight.diffuse);
-        teaCupShader.setVec3("dirLight.specular", dirLight.specular);
-
-        teaCupShader.setVec3("pointLight.position", pointLight.position);
-        teaCupShader.setVec3("pointLight.ambient", pointLight.ambient);
-        teaCupShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        teaCupShader.setVec3("pointLight.specular", pointLight.specular);
-
-        teaCupShader.setFloat("pointLight.constant", pointLight.constant);
-        teaCupShader.setFloat("pointLight.linear", pointLight.linear);
-        teaCupShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-
-        teaCupShader.setVec3("viewPosition", programState->camera.Position);
-        teaCupShader.setFloat("material.shininess", 32.0f);
-
-        projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        view = programState->camera.GetViewMatrix();
-        model = glm::mat4 (1.0f);
-        model = glm::scale(model, glm::vec3(programState->teaCupScale));
-        model = glm::translate(model,programState->teaCupPosition);
-
-        teaCupShader.setMat4("model", model);
-        teaCupShader.setMat4("projection", projection);
-        teaCupShader.setMat4("view", view);
-        teaCup.Draw(teaCupShader);
+        glCullFace(GL_FRONT);
 
         // violin
-        violinShader.setVec3("dirLight.direction", dirLight.position);
-        violinShader.setVec3("dirLight.ambient", dirLight.ambient);
-        violinShader.setVec3("dirLight.diffuse", dirLight.diffuse);
-        violinShader.setVec3("dirLight.specular", dirLight.specular);
-
-        violinShader.setVec3("pointLight.position", pointLight.position);
-        violinShader.setVec3("pointLight.ambient", pointLight.ambient);
-        violinShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        violinShader.setVec3("pointLight.specular", pointLight.specular);
-
-        violinShader.setFloat("pointLight.constant", pointLight.constant);
-        violinShader.setFloat("pointLight.linear", pointLight.linear);
-        violinShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-
-        violinShader.setVec3("viewPosition", programState->camera.Position);
-        violinShader.setFloat("material.shininess", 32.0f);
-
-        projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        view = programState->camera.GetViewMatrix();
+        setShaderUniformValues(violinShader, dirLight, pointLight);
         model = glm::mat4 (1.0f);
         model = glm::scale(model, glm::vec3(programState->violinScale));
         model = glm::rotate(model, (float) glm::radians(3*90.f), glm::vec3(1.0f, 0.0f, 0.0f));
         model = glm::translate(model,programState->violinPosition);
-
         violinShader.setMat4("model", model);
-        violinShader.setMat4("projection", projection);
-        violinShader.setMat4("view", view);
         violin.Draw(violinShader);
 
+        // tea cup
+        teaCupShader.use();
+        setShaderUniformValues(teaCupShader, dirLight, pointLight);
+        teaCupShader.setInt("material.diffuseMap", 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, teaCup.loaded_textures[0].id);
+        teaCupShader.setInt("material.specularMap", 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, teaCup.loaded_textures[0].id);
+        for (unsigned int i = 0; i < teaCup.meshes.size(); i++)
+        {
+            glBindVertexArray(teaCup.meshes[i].VAO);
+            glDrawElementsInstanced(GL_TRIANGLES, teaCup.meshes[i].indices.size(), GL_UNSIGNED_INT, 0, amount);
+            glBindVertexArray(0);
+        }
+
         // flower
-        flowerShader.setVec3("dirLight.direction", dirLight.position);
-        flowerShader.setVec3("dirLight.ambient", dirLight.ambient);
-        flowerShader.setVec3("dirLight.diffuse", dirLight.diffuse);
-        flowerShader.setVec3("dirLight.specular", dirLight.specular);
+        setShaderUniformValues(flowerShader, dirLight, pointLight);
+        flowerShader.setInt("material.diffuseMap", 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, flower.loaded_textures[0].id);
+        flowerShader.setInt("material.specularMap", 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, flower.loaded_textures[0].id);
+        for (unsigned int i = 0; i < flower.meshes.size(); i++)
+        {
+            glBindVertexArray(flower.meshes[i].VAO);
+            glDrawElementsInstanced(GL_TRIANGLES, flower.meshes[i].indices.size(), GL_UNSIGNED_INT, 0, amount);
+            glBindVertexArray(0);
+        }
 
-        flowerShader.setVec3("pointLight.position", pointLight.position);
-        flowerShader.setVec3("pointLight.ambient", pointLight.ambient);
-        flowerShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        flowerShader.setVec3("pointLight.specular", pointLight.specular);
-
-        flowerShader.setFloat("pointLight.constant", pointLight.constant);
-        flowerShader.setFloat("pointLight.linear", pointLight.linear);
-        flowerShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-
-        flowerShader.setVec3("viewPosition", programState->camera.Position);
-        flowerShader.setFloat("material.shininess", 32.0f);
-
-        projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        view = programState->camera.GetViewMatrix();
-        model = glm::mat4 (1.0f);
-        model = glm::scale(model, glm::vec3(programState->flowerScale));
-        model = glm::rotate(model, (float) glm::radians(3*90.f), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::translate(model,programState->flowerPosition);
-
-        flowerShader.setMat4("model", model);
-        flowerShader.setMat4("projection", projection);
-        flowerShader.setMat4("view", view);
-        flower.Draw(flowerShader);
-
-        if (programState->ImGuiEnabled)
-            DrawImGui(programState);
-
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -394,16 +349,68 @@ int main() {
     hexagon.free();
     programState->SaveToFile("resources/program_state.txt");
     delete programState;
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-    // glfw: terminate, clearing all previously allocated GLFW resources.
     glfwTerminate();
     return 0;
 }
 
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
+void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight) {
+    shader.setVec3("lightPos", pointLight.position);
+    shader.setVec3("viewPos", programState->camera.Position);
+
+    shader.setVec3("dirLight.direction", dirLight.position);
+    shader.setVec3("dirLight.ambient", dirLight.ambient);
+    shader.setVec3("dirLight.diffuse", dirLight.diffuse);
+    shader.setVec3("dirLight.specular", dirLight.specular);
+
+    shader.setVec3("pointLight.position", pointLight.position);
+    shader.setVec3("pointLight.ambient", pointLight.ambient);
+    shader.setVec3("pointLight.diffuse", pointLight.diffuse);
+    shader.setVec3("pointLight.specular", pointLight.specular);
+
+    shader.setFloat("pointLight.constant", pointLight.constant);
+    shader.setFloat("pointLight.linear", pointLight.linear);
+    shader.setFloat("pointLight.quadratic", pointLight.quadratic);
+
+    shader.setFloat("material.shininess", 32.0f);
+    shader.setFloat("heightScale", 0.1f);
+
+    glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 view = programState->camera.GetViewMatrix();
+    shader.setMat4("view", view);
+    shader.setMat4("projection", projection);
+}
+
+glm::mat4* getInstanceTransformationMatrices(unsigned int amount, float radius, float offset, float yoffset, float mscale) {
+    srand(glfwGetTime()); // initialize random seed
+    glm::mat4* modelMatrices = new glm::mat4[amount];
+    for (unsigned int i = 0; i < amount; i++) {
+        glm::mat4 model = glm::mat4(1.0f);
+
+        // translation
+        float angle = (float)i / (float)amount * 360.0f;
+        float displacement = (rand() % (int)(2 * yoffset * 100)) / 100.0f - yoffset;
+        float y = displacement;
+        if(y < -11)
+                y *= -1;
+        displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;
+        float x = sin(angle) * radius + displacement * 0.4f; // keep width of asteroid field smaller compared to height
+        displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;
+        float z = cos(angle) * radius + displacement * 0.4f;
+        model = glm::translate(model, glm::vec3(x, y, z));
+
+        // scale
+        model = glm::scale(model, glm::vec3(mscale));
+
+        // rotation
+        float rotAngle = (rand() % 360);
+        model = glm::rotate(model, rotAngle, glm::vec3(0.4f, 0.6f, 0.8f));
+
+        modelMatrices[i] = model;
+    }
+
+    return modelMatrices;
+}
+
 void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -418,16 +425,10 @@ void processInput(GLFWwindow *window) {
         programState->camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
 void framebufferSizeCallback(GLFWwindow *window, int width, int height) {
-    // make sure the viewport matches the new window dimensions; note that width and
-    // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 }
 
-// glfw: whenever the mouse moves, this callback is called
-// -------------------------------------------------------
 void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
     if (firstMouse) {
         lastX = xpos;
@@ -445,45 +446,8 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
         programState->camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
-// glfw: whenever the mouse scroll wheel scrolls, this callback is called
-// ----------------------------------------------------------------------
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
     programState->camera.ProcessMouseScroll(yoffset);
-}
-
-void DrawImGui(ProgramState *programState) {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-
-    {
-        static float f = 0.0f;
-        ImGui::Begin("Hello window");
-        ImGui::Text("Hello text");
-        ImGui::SliderFloat("Float slider", &f, 0.0, 1.0);
-        ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
-        //ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition);
-        ImGui::DragFloat("Backpack scale", &programState->hexagonScale, 0.05, 0.1, 4.0);
-
-        ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
-        ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
-        ImGui::DragFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.05, 0.0, 1.0);
-        ImGui::End();
-    }
-
-    {
-        ImGui::Begin("Camera info");
-        const Camera& c = programState->camera;
-        ImGui::Text("Camera position: (%f, %f, %f)", c.Position.x, c.Position.y, c.Position.z);
-        ImGui::Text("(Yaw, Pitch): (%f, %f)", c.Yaw, c.Pitch);
-        ImGui::Text("Camera front: (%f, %f, %f)", c.Front.x, c.Front.y, c.Front.z);
-        ImGui::Checkbox("Camera mouse update", &programState->CameraMouseMovementUpdateEnabled);
-        ImGui::End();
-    }
-
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
