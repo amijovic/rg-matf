@@ -8,9 +8,33 @@
 
 namespace rg {
 
-    Hexagon::Hexagon(std::vector<float> &pos, std::vector<float> &tex) {
-        vertices = makeVertexMatrix(pos, tex);
-        setupHexagon();
+    Hexagon::Hexagon(std::vector<float> &pos, std::vector<float> &tex, bool ind) {
+        normalMapping = ind;
+        if(normalMapping) {
+            vertices = makeVertexMatrix(pos, tex);
+            setupHexagon1();
+        }
+        else {
+            vertices = {
+                    pos[0], pos[1], pos[2], 0.0f, 0.1f, 0.0f, tex[0], tex[1],
+                    pos[3], pos[4], pos[5], 0.0f, 0.1f, 0.0f, tex[2], tex[3],
+                    pos[6], pos[7], pos[8], 0.0f, 0.1f, 0.0f, tex[4], tex[5],
+                    pos[9], pos[10], pos[11], 0.0f, 0.1f, 0.0f, tex[6], tex[7],
+                    pos[12], pos[13], pos[14], 0.0f, 0.1f, 0.0f, tex[8], tex[9],
+                    pos[15], pos[16], pos[17], 0.0f, 0.1f, 0.0f, tex[10], tex[11],
+                    pos[18], pos[19], pos[20], 0.0f, 0.1f, 0.0f, tex[12], tex[13]
+            };
+            indices = {
+                    0, 1, 2,    // first triangle
+                    0, 2, 3,    // second triangle
+                    0, 3, 4,
+                    0, 4, 5,
+                    0, 5, 6,
+                    0, 6, 1
+            };
+            setupHexagon2();
+        }
+        glBindVertexArray(0);
     }
 
     std::vector<float> Hexagon::makeVertexMatrix(std::vector<float> &pos, std::vector<float> &tex) {
@@ -114,7 +138,7 @@ namespace rg {
         return std::make_pair(tangent, bitangent);
     }
 
-    void Hexagon::setupHexagon() {
+    void Hexagon::setupHexagon1() {
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
 
@@ -140,15 +164,47 @@ namespace rg {
         glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void *) (11 * sizeof(float)));
     }
 
+    void Hexagon::setupHexagon2() {
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+        glGenBuffers(1, &EBO);
+
+        glBindVertexArray(VAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), &vertices[0],GL_STATIC_DRAW); // copy user defined data into the current bind buffer
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(float), &indices[0], GL_STATIC_DRAW);
+
+        // position attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+        glEnableVertexAttribArray(0); // activate defined vao
+        // normals attribute
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) (3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        // texture coord attribute
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *) (6 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+    }
+
     void Hexagon::drawHexagon() {
         glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 6*3); // render triangles
+        if (normalMapping) {
+            glDrawArrays(GL_TRIANGLES, 0, 6 * 3); // render triangles
+        }
+        else {
+            glDrawElements(GL_TRIANGLES, 3 * 6, GL_UNSIGNED_INT, 0);
+        }
         glBindVertexArray(0);
     }
 
     void Hexagon::free() {
         glDeleteVertexArrays(1, &VAO);
         glDeleteBuffers(1, &VBO);
+        if (!normalMapping) {
+            glDeleteBuffers(1, &EBO);
+        }
     }
 
 }
