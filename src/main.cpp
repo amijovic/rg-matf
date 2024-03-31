@@ -60,13 +60,13 @@ struct ProgramState {
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 hexagonPosition = glm::vec3(0.0f, -11.0f, 0.0f);
-    glm::vec3 violinPosition = glm::vec3(0.0f, -8.0f, 0.0f);
+    glm::vec3 ballerinaPosition = glm::vec3(0.1f, 0.0f, -0.5f);
     glm::vec3 windowPosition = glm::vec3(0.0f, 25.0f, 0.0f);
     float hexagonScale = 30.0f;
     float teaCupScale = 0.08f;
-    float violinScale = 0.08f;
+    float ballerinaScale = 20.0f;
     float flowerScale = 0.01f;
-    float windowScale = 20.0f;
+    float windowScale = 15.0f;
     DirLight dirLight;
     PointLight pointLight;
     ProgramState()
@@ -143,7 +143,7 @@ int main() {
 #endif
 
     // glfw create window
-    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Trapped in a rabbit hole", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -174,25 +174,25 @@ int main() {
     rg::Shader hexagonShader("resources/shaders/HexagonShader.vs", "resources/shaders/HexagonShader.fs");
     rg::Shader blendingShader("resources/shaders/BlendingShader.vs", "resources/shaders/BlendingShader.fs");
     rg::Shader teaCupShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
-    rg::Shader violinShader("resources/shaders/Violin.vs", "resources/shaders/Violin.fs");
+    rg::Shader ballerinaShader("resources/shaders/Ballerina.vs", "resources/shaders/Ballerina.fs");
     rg::Shader flowerShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
 
     // load models
     rg::Model teaCup("resources/objects/teaCup/scene.gltf");
-    rg::Model violin("resources/objects/violin/scene.gltf");
+    rg::Model ballerina("resources/objects/ballerina_skeleton/scene.gltf");
     rg::Model flower("resources/objects/flower/scene.gltf");
 
     // hexagon
     rg::Texture2D hexagonDiffuseMap("resources/textures/stone.jpg");
     rg::Texture2D hexagonNormalMap("resources/textures/stoneNormal.jpg");
     rg::Texture2D hexagonHeightMap("resources/textures/stoneDisplacement.jpg");
-    rg::Texture2D transparentTexture("resources/textures/flower.png");
+    rg::Texture2D transparentTexture("resources/textures/stars.png");
 
     rg::Hexagon hexagon(hexagonPositions, hexagonTextureCoord, true);
     rg::Hexagon hexagonBlending(hexagonPositions, hexagonTextureCoord, false);
 
     // transformation matrices
-    unsigned int amount = 200;
+    unsigned int amount = 20;
     glm::mat4* teaCupMatrices = getInstanceTransformationMatrices(amount, 18.0, 5.0, 30.0, programState->teaCupScale);
     unsigned int teaCupBuffer;
     glGenBuffers(1, &teaCupBuffer);
@@ -220,7 +220,7 @@ int main() {
         glBindVertexArray(0);
     }
 
-    amount = 400;
+    amount = 40;
     glm::mat4* flowerMatrices = getInstanceTransformationMatrices(amount, 20.0, 15.0, 40.0, programState->flowerScale);
     unsigned int flowerBuffer;
     glGenBuffers(1, &flowerBuffer);
@@ -251,8 +251,8 @@ int main() {
     // light
     DirLight& dirLight = programState->dirLight;
     dirLight.position = glm::vec3(-0.2f, -1.0f, -0.3f);
-    dirLight.ambient = glm::vec3(0.5f, 0.5f, 0.5f);
-    dirLight.diffuse = glm::vec3(0.2f, 0.2f, 0.2f);
+    dirLight.ambient = glm::vec3(0.15f, 0.15f, 0.15f);
+    dirLight.diffuse = glm::vec3(0.1f, 0.1f, 0.1f);
     dirLight.specular = glm::vec3(0.5f, 0.3f, 0.3f);
 
     PointLight& pointLight = programState->pointLight;
@@ -261,8 +261,8 @@ int main() {
     pointLight.diffuse = glm::vec3(0.6f, 0.6f, 0.6f);
     pointLight.specular = glm::vec3(1.0f, 1.0f, 1.0f);
     pointLight.constant = 1.0f;
-    pointLight.linear = 0.027f;
-    pointLight.quadratic = 0.0028f;
+    pointLight.linear = 0.35f;
+    pointLight.quadratic = 0.44f;
 
     // render loop
     while (!glfwWindowShouldClose(window)) {
@@ -306,14 +306,15 @@ int main() {
         hexagon.drawHexagon();
         glCullFace(GL_FRONT);
 
-        // violin
-        setShaderUniformValues(violinShader, dirLight, pointLight);
+        // ballerina
+        setShaderUniformValues(ballerinaShader, dirLight, pointLight);
         model = glm::mat4 (1.0f);
-        model = glm::scale(model, glm::vec3(programState->violinScale));
-        model = glm::rotate(model, (float) glm::radians(3*90.f), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::translate(model,programState->violinPosition);
-        violinShader.setMat4("model", model);
-        violin.Draw(violinShader);
+        model = glm::scale(model, glm::vec3(programState->ballerinaScale));
+        model = glm::rotate(model, (float) glm::radians(-90.f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+        model = glm::translate(model,programState->ballerinaPosition);
+        ballerinaShader.setMat4("model", model);
+        ballerina.Draw(ballerinaShader);
 
         // tea cup
         teaCupShader.use();
@@ -361,11 +362,7 @@ int main() {
         blendingShader.setInt("texture1", 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, transparentTexture.getId());
-
-        glCullFace(GL_BACK);
-        glFrontFace(GL_CW);
         hexagonBlending.drawHexagon();
-        glCullFace(GL_FRONT);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -406,12 +403,11 @@ void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& 
 }
 
 glm::mat4* getInstanceTransformationMatrices(unsigned int amount, float radius, float offset, float yoffset, float mscale) {
-    srand(glfwGetTime()); // initialize random seed
+    srand(glfwGetTime());
     glm::mat4* modelMatrices = new glm::mat4[amount];
     for (unsigned int i = 0; i < amount; i++) {
         glm::mat4 model = glm::mat4(1.0f);
 
-        // translation
         float angle = (float)i / (float)amount * 360.0f;
         float displacement = (rand() % (int)(2 * yoffset * 100)) / 100.0f - yoffset;
         float y = displacement;
@@ -420,15 +416,13 @@ glm::mat4* getInstanceTransformationMatrices(unsigned int amount, float radius, 
         if(y > 25)
             y -= rand() % (int)(yoffset);
         displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;
-        float x = sin(angle) * radius + displacement * 0.4f; // keep width of asteroid field smaller compared to height
+        float x = sin(angle) * radius + displacement * 0.4f;
         displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;
         float z = cos(angle) * radius + displacement * 0.4f;
         model = glm::translate(model, glm::vec3(x, y, z));
 
-        // scale
         model = glm::scale(model, glm::vec3(mscale));
 
-        // rotation
         float rotAngle = (rand() % 360);
         model = glm::rotate(model, rotAngle, glm::vec3(0.4f, 0.6f, 0.8f));
 
