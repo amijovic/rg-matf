@@ -26,6 +26,9 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
+bool hdr = true;
+bool hdrKeyPressed = false;
+float exposure = 0.5f;
 
 // camera
 float lastX = SCR_WIDTH / 2.0f;
@@ -61,10 +64,13 @@ struct ProgramState {
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 hexagonPosition = glm::vec3(0.0f, -11.0f, 0.0f);
     glm::vec3 ballerinaPosition = glm::vec3(0.1f, 0.0f, -0.5f);
+    glm::vec3 butterflyPosition1 = glm::vec3(-6.0f, 1.0f, 0.0f);
+    glm::vec3 butterflyPosition2 = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 windowPosition = glm::vec3(0.0f, 25.0f, 0.0f);
     float hexagonScale = 30.0f;
-    float teaCupScale = 0.08f;
     float ballerinaScale = 20.0f;
+    float butterflyScale = 0.2f;
+    float teaCupScale = 0.08f;
     float flowerScale = 0.01f;
     float windowScale = 15.0f;
     DirLight dirLight;
@@ -110,6 +116,7 @@ void ProgramState::LoadFromFile(std::string filename) {
 ProgramState *programState;
 void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight);
 glm::mat4* getInstanceTransformationMatrices(unsigned int amount, float radius, float offset, float yoffset, float mscale);
+void renderQuad();
 
 std::vector<float> hexagonPositions {
         0.0f,  0.0f, 0.0f,     // center
@@ -172,14 +179,16 @@ int main() {
 
     // build and compile shaders
     rg::Shader hexagonShader("resources/shaders/HexagonShader.vs", "resources/shaders/HexagonShader.fs");
-    rg::Shader blendingShader("resources/shaders/BlendingShader.vs", "resources/shaders/BlendingShader.fs");
+    rg::Shader modelShader("resources/shaders/ModelShader.vs", "resources/shaders/ModelShader.fs");
     rg::Shader teaCupShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
-    rg::Shader ballerinaShader("resources/shaders/Ballerina.vs", "resources/shaders/Ballerina.fs");
     rg::Shader flowerShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
+    rg::Shader blendingShader("resources/shaders/BlendingShader.vs", "resources/shaders/BlendingShader.fs");
+    rg::Shader hdrShader("resources/shaders/hdr.vs", "resources/shaders/hdr.fs");
 
     // load models
-    rg::Model teaCup("resources/objects/teaCup/scene.gltf");
     rg::Model ballerina("resources/objects/ballerina_skeleton/scene.gltf");
+    rg::Model butterfly("resources/objects/butterfly/scene.gltf");
+    rg::Model teaCup("resources/objects/teaCup/scene.gltf");
     rg::Model flower("resources/objects/flower/scene.gltf");
 
     // hexagon
@@ -257,12 +266,36 @@ int main() {
 
     PointLight& pointLight = programState->pointLight;
     pointLight.position = glm::vec3(0.0f, -10.0f, 0.0f);
-    pointLight.ambient = glm::vec3(0.4f, 0.4f, 0.4f);
+    pointLight.ambient = glm::vec3(0.2f, 0.2f, 0.2f);
     pointLight.diffuse = glm::vec3(0.6f, 0.6f, 0.6f);
     pointLight.specular = glm::vec3(1.0f, 1.0f, 1.0f);
     pointLight.constant = 1.0f;
     pointLight.linear = 0.35f;
     pointLight.quadratic = 0.44f;
+
+    // hdr
+    unsigned int hdrFBO;
+    glGenFramebuffers(1, &hdrFBO);
+    unsigned int colorBuffer;
+    glGenTextures(1, &colorBuffer);
+    glBindTexture(GL_TEXTURE_2D, colorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    unsigned int rboDepth;
+    glGenRenderbuffers(1, &rboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SCR_WIDTH, SCR_HEIGHT);
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "Framebuffer not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    hdrShader.use();
+    hdrShader.setInt("hdrBuffer", 0);
 
     // render loop
     while (!glfwWindowShouldClose(window)) {
@@ -278,12 +311,13 @@ int main() {
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        dirLight.position = glm::vec3(-0.2f, -1.0f, -0.3f);
-        pointLight.position = glm::vec3(0.0f, -10.0f, 0.0f);
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // hexagon
         hexagonShader.use();
         setShaderUniformValues(hexagonShader, dirLight, pointLight);
+        hexagonShader.setVec3("lightPos", pointLight.position);
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model,programState->hexagonPosition);
         model = glm::scale(model, glm::vec3(programState->hexagonScale));
@@ -307,14 +341,31 @@ int main() {
         glCullFace(GL_FRONT);
 
         // ballerina
-        setShaderUniformValues(ballerinaShader, dirLight, pointLight);
+        modelShader.use();
+        setShaderUniformValues(modelShader, dirLight, pointLight);
         model = glm::mat4 (1.0f);
         model = glm::scale(model, glm::vec3(programState->ballerinaScale));
         model = glm::rotate(model, (float) glm::radians(-90.f), glm::vec3(1.0f, 0.0f, 0.0f));
-
         model = glm::translate(model,programState->ballerinaPosition);
-        ballerinaShader.setMat4("model", model);
-        ballerina.Draw(ballerinaShader);
+        modelShader.setMat4("model", model);
+        ballerina.Draw(modelShader);
+
+        // butterfly
+        model = glm::mat4 (1.0f);
+        model = glm::scale(model, glm::vec3(0.8f * programState->butterflyScale));
+        model = glm::rotate(model, (float) glm::radians(-90.f), glm::vec3(1.0f, 0.0f, 0.0f));
+        //model = glm::rotate(model, glm::radians((float)glfwGetTime() * -20), glm::normalize(glm::vec3(0.0f, 0.0f, 0.3f)));
+        model = glm::translate(model,programState->butterflyPosition1);
+        modelShader.setMat4("model", model);
+        butterfly.Draw(modelShader);
+
+        model = glm::mat4 (1.0f);
+        model = glm::scale(model, glm::vec3(programState->butterflyScale));
+        model = glm::rotate(model, (float) glm::radians(-90.f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, glm::radians((float)glfwGetTime() * -20), glm::normalize(glm::vec3(0.2f, 0.5f, 0.5f)));
+        model = glm::translate(model,programState->butterflyPosition2);
+        modelShader.setMat4("model", model);
+        butterfly.Draw(modelShader);
 
         // tea cup
         teaCupShader.use();
@@ -364,6 +415,18 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, transparentTexture.getId());
         hexagonBlending.drawHexagon();
 
+        renderQuad();
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        // hdr
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        hdrShader.use();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, colorBuffer);
+        hdrShader.setInt("hdr", hdr);
+        hdrShader.setFloat("exposure", exposure);
+        renderQuad();
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -376,8 +439,36 @@ int main() {
     return 0;
 }
 
+unsigned int quadVAO = 0;
+unsigned int quadVBO;
+void renderQuad()
+{
+    if (quadVAO == 0)
+    {
+        float quadVertices[] = {
+                // positions                     // texture Coords
+                -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+                -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+                1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+                1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        // setup plane VAO
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+
 void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight) {
-    shader.setVec3("lightPos", pointLight.position);
     shader.setVec3("viewPos", programState->camera.Position);
 
     shader.setVec3("dirLight.direction", dirLight.position);
@@ -385,14 +476,32 @@ void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& 
     shader.setVec3("dirLight.diffuse", dirLight.diffuse);
     shader.setVec3("dirLight.specular", dirLight.specular);
 
-    shader.setVec3("pointLight.position", pointLight.position);
-    shader.setVec3("pointLight.ambient", pointLight.ambient);
-    shader.setVec3("pointLight.diffuse", pointLight.diffuse);
-    shader.setVec3("pointLight.specular", pointLight.specular);
+    shader.setVec3("pointLight[0].position", pointLight.position);
+    shader.setVec3("pointLight[0].ambient", pointLight.ambient);
+    shader.setVec3("pointLight[0].diffuse", pointLight.diffuse);
+    shader.setVec3("pointLight[0].specular", pointLight.specular);
+    shader.setFloat("pointLight[0].constant", pointLight.constant);
+    shader.setFloat("pointLight[0].linear", pointLight.linear);
+    shader.setFloat("pointLight[0].quadratic", pointLight.quadratic);
+    shader.setVec3("pointLight[0].color", glm::vec3(1.0f, 0.8f, 0.0f));
 
-    shader.setFloat("pointLight.constant", pointLight.constant);
-    shader.setFloat("pointLight.linear", pointLight.linear);
-    shader.setFloat("pointLight.quadratic", pointLight.quadratic);
+    shader.setVec3("pointLight[1].position", programState->butterflyPosition1);
+    shader.setVec3("pointLight[1].ambient", pointLight.ambient);
+    shader.setVec3("pointLight[1].diffuse", pointLight.diffuse);
+    shader.setVec3("pointLight[1].specular", pointLight.specular);
+    shader.setFloat("pointLight[1].constant", pointLight.constant);
+    shader.setFloat("pointLight[1].linear", 0.14f);
+    shader.setFloat("pointLight[1].quadratic", 0.07f);
+    shader.setVec3("pointLight[1].color", glm::vec3(10.0f, 10.0f, 15.0f));
+
+    shader.setVec3("pointLight[2].position", programState->butterflyPosition2);
+    shader.setVec3("pointLight[2].ambient", pointLight.ambient);
+    shader.setVec3("pointLight[2].diffuse", pointLight.diffuse);
+    shader.setVec3("pointLight[2].specular", pointLight.specular);
+    shader.setFloat("pointLight[2].constant", pointLight.constant);
+    shader.setFloat("pointLight[2].linear", 0.7f);
+    shader.setFloat("pointLight[2].quadratic", 1.8f);
+    shader.setVec3("pointLight[2].color", glm::vec3(10.0f, 10.0f, 7.0f));
 
     shader.setFloat("material.shininess", 32.0f);
 
@@ -444,6 +553,24 @@ void processInput(GLFWwindow *window) {
         programState->camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         programState->camera.ProcessKeyboard(RIGHT, deltaTime);
+
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !hdrKeyPressed) {
+        hdr = !hdr;
+        hdrKeyPressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
+        hdrKeyPressed = false;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+        if (exposure > 0.0f)
+            exposure -= 0.001f;
+        else
+            exposure = 0.0f;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+        exposure += 0.001f;
+    }
 }
 
 void framebufferSizeCallback(GLFWwindow *window, int width, int height) {
@@ -458,7 +585,7 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
     }
 
     float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+    float yoffset = lastY - ypos;
 
     lastX = xpos;
     lastY = ypos;

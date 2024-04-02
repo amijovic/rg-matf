@@ -11,6 +11,7 @@ struct DirLight {
 
 struct PointLight {
     vec3 position;
+    vec3 color;
 
     vec3 ambient;
     vec3 diffuse;
@@ -27,12 +28,14 @@ struct Material {
     float shininess;
 };
 
+#define POINT_LIGHT_NUMBER 3
+
 in vec2 TexCoords;
 in vec3 Normal;
 in vec3 FragPos;
 
 uniform DirLight dirLight;
-uniform PointLight pointLight;
+uniform PointLight pointLight[POINT_LIGHT_NUMBER];
 uniform Material material;
 
 uniform vec3 viewPosition;
@@ -58,7 +61,7 @@ vec3 calcPointLight(PointLight pointLight, vec3 normal, vec3 FragPos, vec3 viewD
     // diffuse
     vec3 lightDir = normalize(pointLight.position - FragPos);
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = pointLight.diffuse * diff * vec3(texture(material.diffuseMap, TexCoords).rgb);
+    vec3 diffuse = pointLight.color * pointLight.diffuse * diff * vec3(texture(material.diffuseMap, TexCoords).rgb);
 
     // specular
     vec3 reflectDir = reflect(-lightDir, normal);
@@ -83,7 +86,8 @@ void main()
     vec3 viewDir = normalize(viewPosition - FragPos);
 
     vec3 result = calcDirLight(dirLight, normal, viewDir);
-    result += calcPointLight(pointLight, normal, FragPos, viewDir);
+    for (int i = 0; i < POINT_LIGHT_NUMBER; i++)
+        result += calcPointLight(pointLight[i], normal, FragPos, viewDir);
 
     FragColor = vec4(result, 1.0);
 }
