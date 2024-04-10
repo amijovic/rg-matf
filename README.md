@@ -1,6 +1,6 @@
-# Projekat_RG
+# RG Projekat 
 ___
-Projekat *Trapped in a rabbit hole* radjen na predmetu racnarska grafika.
+Projekat *Trapped in a rabbit hole* rađen na predmetu račnarska grafika.
 
 U okviru projekta implementirani su:  
 + Instancing 
@@ -35,9 +35,11 @@ Svi modeli preuzeti su sa: https://sketchfab.com/feed
 ## Galerija
 ___
 
-[//]: [Slika1](resources/gallery/)
+![Slika1](./resources/gallery/img1.jpg)
+![Slika2](./resources/gallery/img3.jpg)
+![Slika3](./resources/gallery/img2.jpg)
 
 ---
-Profesor: Vesna Marinkovic  
-Asistent: Marko Spasic  
-Ana Mijovic, 59/2021
+Profesor: Vesna Marinković  
+Asistent: Marko Spasić  
+Ana Mijović, 59/2021
