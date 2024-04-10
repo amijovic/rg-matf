@@ -116,6 +116,10 @@ namespace rg {
         glUniformMatrix4fv(glGetUniformLocation(m_Id, name.c_str()), 1, GL_FALSE, &mat[0][0]);
     }
 
+    Shader::~Shader() {
+        deleteProgram();
+    }
+
     void Shader::deleteProgram() {
         glDeleteProgram(m_Id);
         m_Id = 0;

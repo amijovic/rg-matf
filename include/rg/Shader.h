@@ -24,6 +24,7 @@ namespace rg {
     public:
         Shader(std::string vertexShaderPath, std::string fragmentShaderPath);
 
+        ~Shader();
         // activate the shader
         void use();
 
