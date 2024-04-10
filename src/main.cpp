@@ -26,9 +26,14 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
+float Width = SCR_WIDTH;
+float Height = SCR_HEIGHT;
+
 bool hdr = true;
 bool hdrKeyPressed = false;
-float exposure = 0.5f;
+bool bloom = true;
+bool bloomKeyPressed = false;
+float exposure = 1.0f;
 
 // camera
 float lastX = SCR_WIDTH / 2.0f;
@@ -74,7 +79,8 @@ struct ProgramState {
     float flowerScale = 0.01f;
     float windowScale = 15.0f;
     DirLight dirLight;
-    PointLight pointLight;
+    PointLight pointLight1;
+    PointLight pointLight2;
     ProgramState()
             : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
 
@@ -114,7 +120,7 @@ void ProgramState::LoadFromFile(std::string filename) {
 }
 
 ProgramState *programState;
-void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight);
+void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight1, PointLight& pointLight2);
 glm::mat4* getInstanceTransformationMatrices(unsigned int amount, float radius, float offset, float yoffset, float mscale);
 void renderQuad();
 
@@ -183,6 +189,7 @@ int main() {
     rg::Shader teaCupShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
     rg::Shader flowerShader("resources/shaders/InstanceModel.vs", "resources/shaders/InstanceModel.fs");
     rg::Shader blendingShader("resources/shaders/BlendingShader.vs", "resources/shaders/BlendingShader.fs");
+    rg::Shader bloomShader("resources/shaders/bloom.vs", "resources/shaders/bloom.fs");
     rg::Shader hdrShader("resources/shaders/hdr.vs", "resources/shaders/hdr.fs");
 
     // load models
@@ -259,43 +266,79 @@ int main() {
 
     // light
     DirLight& dirLight = programState->dirLight;
-    dirLight.position = glm::vec3(-0.2f, -1.0f, -0.3f);
-    dirLight.ambient = glm::vec3(0.15f, 0.15f, 0.15f);
-    dirLight.diffuse = glm::vec3(0.1f, 0.1f, 0.1f);
-    dirLight.specular = glm::vec3(0.5f, 0.3f, 0.3f);
+    dirLight.position = glm::vec3(0.0f);
+    dirLight.ambient = glm::vec3(0.015f);
+    dirLight.diffuse = glm::vec3(0.2f);
+    dirLight.specular = glm::vec3(0.6f);
 
-    PointLight& pointLight = programState->pointLight;
-    pointLight.position = glm::vec3(0.0f, -10.0f, 0.0f);
-    pointLight.ambient = glm::vec3(0.2f, 0.2f, 0.2f);
-    pointLight.diffuse = glm::vec3(0.6f, 0.6f, 0.6f);
-    pointLight.specular = glm::vec3(1.0f, 1.0f, 1.0f);
-    pointLight.constant = 1.0f;
-    pointLight.linear = 0.35f;
-    pointLight.quadratic = 0.44f;
+    PointLight& pointLight1 = programState->pointLight1;
+    pointLight1.position = glm::vec3(0.0f, -5.0f, 0.0f);
+    pointLight1.ambient = glm::vec3(0.5f);
+    pointLight1.diffuse = glm::vec3(0.6f);
+    pointLight1.specular = glm::vec3(0.8f);
+    pointLight1.constant = 1.0f;
+    pointLight1.linear = 0.22f;
+    pointLight1.quadratic = 0.20f;
 
-    // hdr
+    PointLight& pointLight2 = programState->pointLight2;
+    pointLight2.position = glm::vec3(0.0f);
+    pointLight2.ambient = glm::vec3(4.0f);
+    pointLight2.diffuse = glm::vec3(2.5f);
+    pointLight2.specular = glm::vec3(2.0f);
+    pointLight2.constant = 1.0f;
+    pointLight2.linear = 0.7f;
+    pointLight2.quadratic = 1.8f;
+
+    // hdr & bloom
     unsigned int hdrFBO;
     glGenFramebuffers(1, &hdrFBO);
-    unsigned int colorBuffer;
-    glGenTextures(1, &colorBuffer);
-    glBindTexture(GL_TEXTURE_2D, colorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+    unsigned int colorBuffers[2];
+    glGenTextures(2, colorBuffers);
+    for (unsigned int i = 0; i < 2; i++) {
+        glBindTexture(GL_TEXTURE_2D, colorBuffers[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, colorBuffers[i], 0);
+    }
 
     unsigned int rboDepth;
     glGenRenderbuffers(1, &rboDepth);
     glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SCR_WIDTH, SCR_HEIGHT);
-    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+
+    unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, attachments);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         std::cout << "Framebuffer not complete!" << std::endl;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    unsigned int pingpongFBO[2];
+    unsigned int pingpongColorbuffers[2];
+    glGenFramebuffers(2, pingpongFBO);
+    glGenTextures(2, pingpongColorbuffers);
+    for (unsigned int i = 0; i < 2; i++) {
+        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+        glBindTexture(GL_TEXTURE_2D, pingpongColorbuffers[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // we clamp to the edge as the blur filter would otherwise sample repeated texture values!
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongColorbuffers[i], 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "Framebuffer not complete!" << std::endl;
+    }
+
+    bloomShader.use();
+    bloomShader.setInt("image", 0);
     hdrShader.use();
     hdrShader.setInt("hdrBuffer", 0);
+    hdrShader.setInt("bloomBlur", 1);
 
     // render loop
     while (!glfwWindowShouldClose(window)) {
@@ -316,8 +359,8 @@ int main() {
 
         // hexagon
         hexagonShader.use();
-        setShaderUniformValues(hexagonShader, dirLight, pointLight);
-        hexagonShader.setVec3("lightPos", pointLight.position);
+        setShaderUniformValues(hexagonShader, dirLight, pointLight1, pointLight2);
+        hexagonShader.setVec3("lightPos", pointLight1.position);
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model,programState->hexagonPosition);
         model = glm::scale(model, glm::vec3(programState->hexagonScale));
@@ -342,7 +385,7 @@ int main() {
 
         // ballerina
         modelShader.use();
-        setShaderUniformValues(modelShader, dirLight, pointLight);
+        setShaderUniformValues(modelShader, dirLight, pointLight1, pointLight2);
         model = glm::mat4 (1.0f);
         model = glm::scale(model, glm::vec3(programState->ballerinaScale));
         model = glm::rotate(model, (float) glm::radians(-90.f), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -354,22 +397,21 @@ int main() {
         model = glm::mat4 (1.0f);
         model = glm::scale(model, glm::vec3(0.8f * programState->butterflyScale));
         model = glm::rotate(model, (float) glm::radians(-90.f), glm::vec3(1.0f, 0.0f, 0.0f));
-        //model = glm::rotate(model, glm::radians((float)glfwGetTime() * -20), glm::normalize(glm::vec3(0.0f, 0.0f, 0.3f)));
-        model = glm::translate(model,programState->butterflyPosition1);
+        model = glm::translate(model,programState->butterflyPosition1 + glm::vec3(sin(1.2*(float)currentFrame), sin(0.8*(float)currentFrame), 0.0f));
         modelShader.setMat4("model", model);
         butterfly.Draw(modelShader);
 
         model = glm::mat4 (1.0f);
         model = glm::scale(model, glm::vec3(programState->butterflyScale));
         model = glm::rotate(model, (float) glm::radians(-90.f), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::rotate(model, glm::radians((float)glfwGetTime() * -20), glm::normalize(glm::vec3(0.2f, 0.5f, 0.5f)));
+        model = glm::rotate(model, glm::radians((float)currentFrame * -20), glm::normalize(glm::vec3(0.2f, 0.5f, 0.5f)));
         model = glm::translate(model,programState->butterflyPosition2);
         modelShader.setMat4("model", model);
         butterfly.Draw(modelShader);
 
         // tea cup
         teaCupShader.use();
-        setShaderUniformValues(teaCupShader, dirLight, pointLight);
+        setShaderUniformValues(teaCupShader, dirLight, pointLight1, pointLight2);
         teaCupShader.setInt("material.diffuseMap", 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, teaCup.loaded_textures[0].id);
@@ -384,7 +426,7 @@ int main() {
         }
 
         // flower
-        setShaderUniformValues(flowerShader, dirLight, pointLight);
+        setShaderUniformValues(flowerShader, dirLight, pointLight1, pointLight2);
         flowerShader.setInt("material.diffuseMap", 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, flower.loaded_textures[0].id);
@@ -400,10 +442,8 @@ int main() {
 
         // blending
         blendingShader.use();
-        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = programState->camera.GetViewMatrix();
-        blendingShader.setMat4("view", view);
-        blendingShader.setMat4("projection", projection);
+        blendingShader.setMat4("view", programState->camera.GetViewMatrix());
+        blendingShader.setMat4("projection", glm::perspective(glm::radians(programState->camera.Zoom),(float) Width / (float) Height, 0.1f, 100.0f));
         model = glm::mat4(1.0f);
         model = glm::translate(model,programState->windowPosition);
         model = glm::scale(model, glm::vec3(programState->windowScale));
@@ -415,15 +455,31 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, transparentTexture.getId());
         hexagonBlending.drawHexagon();
 
-        renderQuad();
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        // hdr
+        // blur
+        bool horizontal = true, first_iteration = true;
+        amount = 10;
+        bloomShader.use();
+        for (unsigned int i = 0; i < amount; i++) {
+            glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+            bloomShader.setInt("horizontal", horizontal);
+            glBindTexture(GL_TEXTURE_2D, first_iteration ? colorBuffers[1] : pingpongColorbuffers[!horizontal]);
+            renderQuad();
+            horizontal = !horizontal;
+            if (first_iteration)
+                first_iteration = false;
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         hdrShader.use();
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, colorBuffer);
-        hdrShader.setInt("hdr", hdr);
+        glBindTexture(GL_TEXTURE_2D, colorBuffers[0]);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, pingpongColorbuffers[!horizontal]);
+        hdrShader.setBool("hdr", hdr);
+        hdrShader.setBool("bloom", bloom);
         hdrShader.setFloat("exposure", exposure);
         renderQuad();
 
@@ -452,7 +508,7 @@ void renderQuad()
                 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
                 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
         };
-        // setup plane VAO
+
         glGenVertexArrays(1, &quadVAO);
         glGenBuffers(1, &quadVBO);
         glBindVertexArray(quadVAO);
@@ -468,7 +524,7 @@ void renderQuad()
     glBindVertexArray(0);
 }
 
-void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight) {
+void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& pointLight1, PointLight& pointLight2) {
     shader.setVec3("viewPos", programState->camera.Position);
 
     shader.setVec3("dirLight.direction", dirLight.position);
@@ -476,36 +532,36 @@ void setShaderUniformValues(rg::Shader& shader, DirLight& dirLight, PointLight& 
     shader.setVec3("dirLight.diffuse", dirLight.diffuse);
     shader.setVec3("dirLight.specular", dirLight.specular);
 
-    shader.setVec3("pointLight[0].position", pointLight.position);
-    shader.setVec3("pointLight[0].ambient", pointLight.ambient);
-    shader.setVec3("pointLight[0].diffuse", pointLight.diffuse);
-    shader.setVec3("pointLight[0].specular", pointLight.specular);
-    shader.setFloat("pointLight[0].constant", pointLight.constant);
-    shader.setFloat("pointLight[0].linear", pointLight.linear);
-    shader.setFloat("pointLight[0].quadratic", pointLight.quadratic);
+    shader.setVec3("pointLight[0].position", pointLight1.position);
+    shader.setVec3("pointLight[0].ambient", pointLight1.ambient);
+    shader.setVec3("pointLight[0].diffuse", pointLight1.diffuse);
+    shader.setVec3("pointLight[0].specular", pointLight1.specular);
+    shader.setFloat("pointLight[0].constant", pointLight1.constant);
+    shader.setFloat("pointLight[0].linear", pointLight1.linear);
+    shader.setFloat("pointLight[0].quadratic", pointLight1.quadratic);
     shader.setVec3("pointLight[0].color", glm::vec3(1.0f, 0.8f, 0.0f));
 
     shader.setVec3("pointLight[1].position", programState->butterflyPosition1);
-    shader.setVec3("pointLight[1].ambient", pointLight.ambient);
-    shader.setVec3("pointLight[1].diffuse", pointLight.diffuse);
-    shader.setVec3("pointLight[1].specular", pointLight.specular);
-    shader.setFloat("pointLight[1].constant", pointLight.constant);
-    shader.setFloat("pointLight[1].linear", 0.14f);
-    shader.setFloat("pointLight[1].quadratic", 0.07f);
+    shader.setVec3("pointLight[1].ambient", pointLight2.ambient);
+    shader.setVec3("pointLight[1].diffuse", pointLight2.diffuse);
+    shader.setVec3("pointLight[1].specular", pointLight2.specular);
+    shader.setFloat("pointLight[1].constant", pointLight2.constant);
+    shader.setFloat("pointLight[1].linear", pointLight2.linear);
+    shader.setFloat("pointLight[1].quadratic", pointLight2.quadratic);
     shader.setVec3("pointLight[1].color", glm::vec3(10.0f, 10.0f, 15.0f));
 
     shader.setVec3("pointLight[2].position", programState->butterflyPosition2);
-    shader.setVec3("pointLight[2].ambient", pointLight.ambient);
-    shader.setVec3("pointLight[2].diffuse", pointLight.diffuse);
-    shader.setVec3("pointLight[2].specular", pointLight.specular);
-    shader.setFloat("pointLight[2].constant", pointLight.constant);
-    shader.setFloat("pointLight[2].linear", 0.7f);
-    shader.setFloat("pointLight[2].quadratic", 1.8f);
+    shader.setVec3("pointLight[2].ambient", pointLight2.ambient);
+    shader.setVec3("pointLight[2].diffuse", pointLight2.diffuse);
+    shader.setVec3("pointLight[2].specular", pointLight2.specular);
+    shader.setFloat("pointLight[2].constant", pointLight2.constant);
+    shader.setFloat("pointLight[2].linear", pointLight2.linear);
+    shader.setFloat("pointLight[2].quadratic", pointLight2.quadratic);
     shader.setVec3("pointLight[2].color", glm::vec3(10.0f, 10.0f, 7.0f));
 
     shader.setFloat("material.shininess", 32.0f);
 
-    glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) Width / (float) Height, 0.1f, 100.0f);
     glm::mat4 view = programState->camera.GetViewMatrix();
     shader.setMat4("view", view);
     shader.setMat4("projection", projection);
@@ -554,12 +610,20 @@ void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         programState->camera.ProcessKeyboard(RIGHT, deltaTime);
 
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !hdrKeyPressed) {
+    if (glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS && !hdrKeyPressed) {
         hdr = !hdr;
         hdrKeyPressed = true;
     }
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
+    if (glfwGetKey(window, GLFW_KEY_H) == GLFW_RELEASE) {
         hdrKeyPressed = false;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS && !bloomKeyPressed) {
+        bloom = !bloom;
+        bloomKeyPressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_B) == GLFW_RELEASE) {
+        bloomKeyPressed = false;
     }
 
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
@@ -574,6 +638,8 @@ void processInput(GLFWwindow *window) {
 }
 
 void framebufferSizeCallback(GLFWwindow *window, int width, int height) {
+    Width = width;
+    Height = height;
     glViewport(0, 0, width, height);
 }
 
