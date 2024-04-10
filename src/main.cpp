@@ -213,12 +213,12 @@ int main() {
     rg::Hexagon hexagonBlending(hexagonPositions, hexagonTextureCoord, false);
 
     // transformation matrices
-    unsigned int amount = 20;
-    glm::mat4* teaCupMatrices = getInstanceTransformationMatrices(amount, 18.0, 5.0, 30.0, programState->teaCupScale);
+    unsigned int amountc = 40;
+    glm::mat4* teaCupMatrices = getInstanceTransformationMatrices(amountc, 18.0, 5.0, 30.0, programState->teaCupScale);
     unsigned int teaCupBuffer;
     glGenBuffers(1, &teaCupBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, teaCupBuffer);
-    glBufferData(GL_ARRAY_BUFFER, amount * sizeof(glm::mat4), &teaCupMatrices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, amountc * sizeof(glm::mat4), &teaCupMatrices[0], GL_STATIC_DRAW);
 
     for (unsigned int i = 0; i < teaCup.meshes.size(); i++)
     {
@@ -241,12 +241,12 @@ int main() {
         glBindVertexArray(0);
     }
 
-    amount = 40;
-    glm::mat4* flowerMatrices = getInstanceTransformationMatrices(amount, 20.0, 15.0, 40.0, programState->flowerScale);
+    unsigned int amountf = 80;
+    glm::mat4* flowerMatrices = getInstanceTransformationMatrices(amountf, 20.0, 15.0, 40.0, programState->flowerScale);
     unsigned int flowerBuffer;
     glGenBuffers(1, &flowerBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, flowerBuffer);
-    glBufferData(GL_ARRAY_BUFFER, amount * sizeof(glm::mat4), &flowerMatrices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, amountf * sizeof(glm::mat4), &flowerMatrices[0], GL_STATIC_DRAW);
 
     for (unsigned int i = 0; i < flower.meshes.size(); i++)
     {
@@ -423,7 +423,7 @@ int main() {
         for (unsigned int i = 0; i < teaCup.meshes.size(); i++)
         {
             glBindVertexArray(teaCup.meshes[i].VAO);
-            glDrawElementsInstanced(GL_TRIANGLES, teaCup.meshes[i].indices.size(), GL_UNSIGNED_INT, 0, amount);
+            glDrawElementsInstanced(GL_TRIANGLES, teaCup.meshes[i].indices.size(), GL_UNSIGNED_INT, 0, amountc);
             glBindVertexArray(0);
         }
 
@@ -438,7 +438,7 @@ int main() {
         for (unsigned int i = 0; i < flower.meshes.size(); i++)
         {
             glBindVertexArray(flower.meshes[i].VAO);
-            glDrawElementsInstanced(GL_TRIANGLES, flower.meshes[i].indices.size(), GL_UNSIGNED_INT, 0, amount);
+            glDrawElementsInstanced(GL_TRIANGLES, flower.meshes[i].indices.size(), GL_UNSIGNED_INT, 0, amountf);
             glBindVertexArray(0);
         }
 
@@ -461,7 +461,7 @@ int main() {
 
         // blur
         bool horizontal = true, first_iteration = true;
-        amount = 10;
+        unsigned int amount = 10;
         bloomShader.use();
         for (unsigned int i = 0; i < amount; i++) {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
@@ -491,7 +491,13 @@ int main() {
 
     glDeleteBuffers(1, &teaCupBuffer);
     glDeleteBuffers(1, &flowerBuffer);
-    glDeleteBuffers(1, &quadVAO);
+    glDeleteVertexArrays(1, &quadVAO);
+    glDeleteBuffers(1, &quadVBO);
+    glDeleteFramebuffers(1, &hdrFBO);
+    glDeleteTextures(2, colorBuffers);
+    glDeleteRenderbuffers(1, &rboDepth);
+    glDeleteFramebuffers(2, pingpongFBO);
+    glDeleteTextures(2, pingpongColorbuffers);
     hexagon.free();
     hexagonBlending.free();
     delete teaCupMatrices;
